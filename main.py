@@ -29,6 +29,7 @@ class ScreenPet(QWidget):
         self.drag_offset = QPoint()
         self.message = "Hi! I'm your screen pet."
         self.message_ticks = 180
+        self.flight_origin_y = self.y()
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.animate)
@@ -41,6 +42,11 @@ class ScreenPet(QWidget):
 
     def set_mode(self, mode):
         self.mode = mode
+        if mode == "fly":
+            self.flight_origin_y = self.y()
+        elif mode == "walk":
+            screen = QApplication.primaryScreen().availableGeometry()
+            self.move(self.x(), screen.bottom() - 205)
         self.say({
             "walk": "Let's take a walk!",
             "fly": "Wheee! I'm flying!",
@@ -59,7 +65,7 @@ class ScreenPet(QWidget):
                 x = max(screen.left(), min(x, screen.right() - self.width()))
             y = self.y()
             if self.mode == "fly":
-                y += round(2 * math.sin(self.frame / 12))
+                y = self.flight_origin_y - 55 + round(12 * math.sin(self.frame / 12))
                 y = max(screen.top(), min(y, screen.bottom() - self.height()))
             self.move(x, y)
 
@@ -109,7 +115,8 @@ class ScreenPet(QWidget):
         p.setBrush(QColor("#172b43"))
         p.drawRoundedRect(54, 31 + y, 72, 52, 19, 19)
         eye = QColor("#36d5ff")
-        if self.mode == "sleep":
+        blinking = self.mode != "sleep" and self.frame % 150 in (0, 1, 2)
+        if self.mode == "sleep" or blinking:
             p.setPen(QPen(eye, 3, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
             p.drawLine(68, 55 + y, 80, 55 + y)
             p.drawLine(100, 55 + y, 112, 55 + y)
