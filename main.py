@@ -27,6 +27,10 @@ class ScreenPet(QWidget):
         self.direction = 1
         self.dragging = False
         self.drag_offset = QPoint()
+        self.setMouseTracking(True)
+        self.cursor_near_pet = False
+        self.gaze_x = 0
+        self.gaze_y = 0
         self.message = "Hi! I'm your screen pet."
         self.message_ticks = 180
         self.flight_origin_y = self.y()
@@ -123,8 +127,8 @@ class ScreenPet(QWidget):
         else:
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(eye)
-            p.drawEllipse(69, 45 + y, 12, 17)
-            p.drawEllipse(99, 45 + y, 12, 17)
+            p.drawEllipse(69 + self.gaze_x, 45 + y + self.gaze_y, 12, 17)
+            p.drawEllipse(99 + self.gaze_x, 45 + y + self.gaze_y, 12, 17)
 
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QColor("#36d5ff"))
@@ -153,8 +157,30 @@ class ScreenPet(QWidget):
             self.open_menu()
 
     def mouseMoveEvent(self, event):
+        pos = event.position().toPoint()
+        over_head = 43 <= pos.x() <= 137 and 20 <= pos.y() <= 95
+        over_body = 49 <= pos.x() <= 131 and 76 <= pos.y() <= 140
+        over_pet = over_head or over_body
+
+        if over_pet:
+            self.gaze_x = max(-4, min(4, round((pos.x() - 90) / 10)))
+            self.gaze_y = max(-3, min(3, round((pos.y() - 55) / 12)))
+            if not self.cursor_near_pet:
+                self.say("Hey! I see you!")
+        else:
+            self.gaze_x = 0
+            self.gaze_y = 0
+
+        self.cursor_near_pet = over_pet
         if self.dragging and event.buttons() & Qt.MouseButton.LeftButton:
             self.move(event.globalPosition().toPoint() - self.drag_offset)
+        self.update()
+
+    def leaveEvent(self, event):
+        self.cursor_near_pet = False
+        self.gaze_x = 0
+        self.gaze_y = 0
+        self.update()
 
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
