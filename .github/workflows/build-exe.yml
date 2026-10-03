@@ -1,0 +1,80 @@
+name: Build Kent Windows EXE
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:  # allows manual trigger from GitHub website
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build executable with PyInstaller
+        run: |
+          pyinstaller --noconfirm --clean --windowed --name "Kent" ^
+            --add-data ".env.example;." ^
+            --hidden-import=pynput.mouse._win32 ^
+            --hidden-import=pynput.keyboard._win32 ^
+            --hidden-import=speech_recognition ^
+            --hidden-import=google.genai ^
+            --hidden-import=google.genai.types ^
+            --collect-all=PySide6 ^
+            --collect-all=speech_recognition ^
+            main.py
+
+      - name: Create release folder
+        run: |
+          mkdir release
+          xcopy /E /I /Y dist\Kent release\Kent
+          copy .env.example release\Kent\.env.example
+          copy README.md release\Kent\README.txt
+
+      - name: Zip the executable
+        run: |
+          Compress-Archive -Path release\Kent -DestinationPath Kent-Windows.zip -Force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Kent-Windows
+          path: Kent-Windows.zip
+          retention-days: 30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: "v${{ github.run_number }}"
+          name: "Kent v${{ github.run_number }}"
+          body: |
+            Automatic build of Kent AI Desktop Companion
+
+            ### How to use
+            1. Download `Kent-Windows.zip`
+            2. Extract the folder
+            3. Copy `.env.example` to `.env` and put your Gemini API key inside
+            4. Double-click `Kent.exe`
+
+            **Note:** Windows may show a SmartScreen warning the first time (unsigned app). Click "More info" → "Run anyway".
+          files: |
+            Kent-Windows.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
