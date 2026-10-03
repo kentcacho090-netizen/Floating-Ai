@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load .env from project root
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
@@ -12,7 +11,8 @@ GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
 # ── Ollama (preferred local) ─────────────────────────────────────────────
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")  # change to llava for vision
+# Default text model. For vision, set to llava or another vision model.
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")
 
 # How long (seconds) of silence before returning to wake mode
 CONVERSATION_TIMEOUT = 12
@@ -20,7 +20,6 @@ CONVERSATION_TIMEOUT = 12
 # Size of the focused crop around the mouse (pixels)
 CURSOR_CROP_SIZE = 700
 
-# Personality system prompt
 SYSTEM_PROMPT = """You are Kent, a small friendly AI robot that lives on the user's Windows desktop.
 
 Personality:

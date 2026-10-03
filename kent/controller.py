@@ -35,7 +35,7 @@ class KentController(QObject):
         self.wake_worker: Optional[WakeWordWorker] = None
         self.stt_worker: Optional[SpeechToTextWorker] = None
 
-        # AI — new local-first brain
+        # AI — local-first brain
         self.brain = KentBrain()
         self.history: List[dict] = []
 
@@ -61,15 +61,15 @@ class KentController(QObject):
         self._set_state(KentState.IDLE)
 
         if self.brain.is_ready():
-            engine = self.brain.current_engine_name()
+            status = self.brain.status_message()
             self.chat.show_message(
-                f"Hi! I'm Kent (using {engine}). Right-click me to enable the microphone.",
+                f"Hi! I'm Kent.\nBrain: {status}\nRight-click → Microphone ON",
                 7000,
             )
-            print(f"[kent] Ready with engine: {engine}")
+            print(f"[kent] Ready — {status}")
         else:
             self.chat.show_message(
-                "Hi! I'm Kent.\nNo AI engine found yet.\nInstall Ollama or add GEMINI_API_KEY to .env",
+                "Hi! I'm Kent.\nNo AI engine found.\nInstall Ollama or add GEMINI_API_KEY",
                 9000,
             )
             print("[kent] No AI engine available at startup")
@@ -151,14 +151,12 @@ class KentController(QObject):
         self.chat.show_status("Yeah? I'm listening...")
         self._set_state(KentState.LISTENING)
 
-        # Start conversation STT
         self.stt_worker = SpeechToTextWorker()
         self.stt_worker.result.connect(self._on_user_speech)
         self.stt_worker.failed.connect(self._on_stt_failed)
         self.stt_worker.finished_listening.connect(self._on_stt_finished)
         self.stt_worker.start()
 
-        # Safety timeout
         self._conversation_timer.start(CONVERSATION_TIMEOUT * 1000)
 
     @Slot(str)
@@ -179,7 +177,7 @@ class KentController(QObject):
 
     @Slot()
     def _on_stt_finished(self):
-        pass  # handled by result / failed
+        pass
 
     def _return_to_wake_mode(self):
         self._stop_stt()
@@ -198,13 +196,12 @@ class KentController(QObject):
     def _process_question(self, question: str):
         if not self.brain.is_ready():
             self.chat.show_message(
-                "No AI engine available.\nInstall Ollama or add GEMINI_API_KEY to .env",
+                "No AI engine available.\nInstall Ollama or add GEMINI_API_KEY",
                 7000,
             )
             self._return_to_wake_mode()
             return
 
-        # Decide if this looks like a visual question
         visual_keywords = [
             "this", "that", "here", "what is", "what's", "explain",
             "look", "see", "screen", "error", "code", "diagram",
@@ -223,9 +220,8 @@ class KentController(QObject):
                 images.append(img)
                 print(f"[kent] captured crop around ({mx}, {my})")
 
-        # Build messages
         messages = []
-        messages.extend(self.history[-10:])  # last ~5 turns
+        messages.extend(self.history[-10:])
         messages.append({"role": "user", "content": question})
 
         try:
@@ -237,21 +233,17 @@ class KentController(QObject):
             QTimer.singleShot(2000, self._return_to_wake_mode)
             return
 
-        # Save to memory
         self.history.append({"role": "user", "content": question})
         self.history.append({"role": "assistant", "content": reply})
         if len(self.history) > 20:
             self.history = self.history[-16:]
 
-        # Show answer
         self._set_state(KentState.RESPONDING)
         self.chat.show_message(reply, duration_ms=max(8000, len(reply) * 50))
 
-        # After answering, stay in conversation mode a bit longer
         self._set_state(KentState.IDLE)
         self._conversation_timer.start(CONVERSATION_TIMEOUT * 1000)
 
-        # Re-arm STT for follow-up (no wake needed)
         if self.mic_enabled:
             self.stt_worker = SpeechToTextWorker(timeout=10.0)
             self.stt_worker.result.connect(self._on_user_speech)

@@ -1,6 +1,5 @@
 """
 KentBrain — smart router that prefers local (Ollama) then falls back to cloud.
-This is the only class the Controller talks to.
 """
 
 from typing import List, Optional
@@ -13,15 +12,15 @@ from kent.ai.gemini_engine import GeminiEngine
 
 class KentBrain:
     """
-    Selects the best available engine at startup and on each request.
+    Selects the best available engine.
     Priority: Ollama (local) → Gemini (cloud)
+    Automatically switches to a vision-capable engine when images are present.
     """
 
     def __init__(self):
         self.engines: List[Engine] = []
         self.active: Optional[Engine] = None
 
-        # Register engines in preference order
         self.engines.append(OllamaEngine())
         self.engines.append(GeminiEngine())
 
@@ -42,13 +41,23 @@ class KentBrain:
     def current_engine_name(self) -> str:
         return self.active.name if self.active else "none"
 
+    def status_message(self) -> str:
+        """Short human-friendly status for the chatbox."""
+        if not self.active:
+            return "No AI engine found"
+        name = self.active.name
+        if name == "ollama":
+            return "Local (Ollama)"
+        if name == "gemini":
+            return "Cloud (Gemini)"
+        return name
+
     def chat(
         self,
         messages: List[dict],
         images: Optional[List[Image.Image]] = None,
     ) -> str:
         if not self.active:
-            # Try re-selecting in case Ollama started later
             self._select_best()
             if not self.active:
                 raise RuntimeError(
@@ -57,12 +66,20 @@ class KentBrain:
                     "• Add GEMINI_API_KEY to your .env file"
                 )
 
-        # If the active engine doesn't support vision but we have images,
-        # try to find one that does
-        if images and not self.active.supports_vision():
+        # Prefer a vision-capable engine when images are present
+        if images:
+            # First try the current engine if it supports vision
+            if self.active.supports_vision():
+                return self.active.chat(messages, images)
+
+            # Otherwise look for any available vision engine
             for engine in self.engines:
                 if engine.is_available() and engine.supports_vision():
                     print(f"[kent] Switching to {engine.name} for vision")
                     return engine.chat(messages, images)
 
-        return self.active.chat(messages, images)
+            # No vision engine available — fall back to text-only with a note
+            print("[kent] No vision engine available, answering text-only")
+            return self.active.chat(messages, images=None)
+
+        return self.active.chat(messages, images=None)
