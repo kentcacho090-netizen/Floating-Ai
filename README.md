@@ -4,84 +4,66 @@ A small floating AI robot that lives on your Windows desktop.
 
 He can hear you, see where your mouse is pointing, look at your screen when you ask, and reply **only in his chatbox** (no speaking).
 
-## Download Ready-made EXE (easiest)
+**Local-first by default** (Ollama) with optional Gemini cloud fallback.
 
-Go to the **Releases** page:
+## Quick Start
 
-→ [https://github.com/kentcacho090-netizen/Floating-Ai/releases](https://github.com/kentcacho090-netizen/Floating-Ai/releases)
+### 1. Preferred — Local (free & private)
 
-1. Download the latest `Kent-Windows.zip`
-2. Extract it
-3. Copy `.env.example` → `.env` and put your Gemini API key inside
-4. Double-click `Kent.exe`
+1. Install [Ollama](https://ollama.com)
+2. Pull a model:
+   ```powershell
+   ollama pull llama3.2
+   ```
+   (For vision / screen understanding use `ollama pull llava`)
+3. Run Kent:
+   ```powershell
+   py main.py
+   ```
 
-> First time Windows may show a SmartScreen warning (the app is not signed).  
-> Click **More info** → **Run anyway**.
+### 2. Optional — Cloud (Gemini)
 
----
+Copy `.env.example` → `.env` and add your key:
+
+```
+GEMINI_API_KEY=your_key_here
+```
+
+Kent will automatically use Gemini if Ollama is not available.
 
 ## Features
 
 - Transparent, always-on-top desktop robot
 - Walk / Sleep / Idle animations
-- Dynamic chatbox (grows for longer answers)
-- Global mouse tracking (works anywhere on screen)
+- Dynamic chatbox
+- Global mouse tracking
 - On-demand screen capture focused on your cursor
-- Wake-word style voice input → conversation mode
-- Real Gemini vision + chat
+- Wake-word voice input → conversation mode
+- **Local-first AI** (Ollama) + Gemini fallback
 - Conversation memory
 - Simple right-click menu: Microphone · Sleep/Wake · Walk/Stop
 
-## Run from source
+## How to talk to Kent
 
-```powershell
-git clone https://github.com/kentcacho090-netizen/Floating-Ai.git
-cd Floating-Ai
-py -m venv .venv
-.venv\Scripts\activate
-py -m pip install -r requirements.txt
-copy .env.example .env
-# edit .env and add your GEMINI_API_KEY
-py main.py
-```
+1. Right-click → **Microphone ON**
+2. Say **“Hey Kent”**
+3. Ask your question (you can point at something on screen)
+4. He answers in the chatbox
 
-## Build the EXE yourself
-
-Just double-click `build.bat` (or run it from PowerShell).
-
-The finished program will be in `dist\Kent\Kent.exe`.
-
-## Architecture
+## Architecture (local-first)
 
 ```
-kent/
-├── controller.py      # central brain + state machine
-├── ui/
-│   ├── pet.py         # the visual robot
-│   └── chatbox.py     # dynamic speech bubble
-├── perception/
-│   ├── mouse.py       # global mouse tracker
-│   └── screen.py      # screenshot + cursor crop
-├── voice/
-│   ├── wake.py        # wake-word detection
-│   └── stt.py         # speech-to-text
-└── ai/
-    ├── provider.py    # abstract AI interface
-    └── gemini.py      # Gemini implementation
+Kent
+├── UI (robot + chatbox)
+├── Perception (mouse + screen crop)
+├── Voice (wake + STT)
+└── Intelligence
+     ├── OllamaEngine   ← primary (local)
+     └── GeminiEngine   ← optional fallback
 ```
 
-## Important Notes
+## Notes
 
-- **No TTS** — Kent never speaks. Text only.
-- Screen images are captured only when you ask a visual question and are discarded after the AI call.
-- API key is loaded only from environment / `.env`.
-- Automatic Windows builds are created by GitHub Actions on every push to `main`.
-
-## Roadmap
-
-- Better local wake-word model (openwakeword / Porcupine)
-- Local STT option (faster-whisper)
-- Multi-monitor improvements
-- Conversation history summarization
-- Settings panel
-- More expressive animations
+- No TTS — Kent never speaks out loud.
+- Screen images are captured only when needed and discarded after use.
+- If both Ollama and Gemini are available, Ollama is preferred.

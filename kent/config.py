@@ -6,8 +6,13 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
+# ── Gemini (optional cloud) ──────────────────────────────────────────────
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+
+# ── Ollama (preferred local) ─────────────────────────────────────────────
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2")  # change to llava for vision
 
 # How long (seconds) of silence before returning to wake mode
 CONVERSATION_TIMEOUT = 12

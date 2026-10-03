@@ -14,6 +14,7 @@ from kent.perception.screen import capture_cursor_region
 from kent.voice.wake import WakeWordWorker
 from kent.voice.stt import SpeechToTextWorker
 from kent.config import CONVERSATION_TIMEOUT
+from kent.ai.brain import KentBrain
 
 
 class KentController(QObject):
@@ -34,8 +35,8 @@ class KentController(QObject):
         self.wake_worker: Optional[WakeWordWorker] = None
         self.stt_worker: Optional[SpeechToTextWorker] = None
 
-        # AI
-        self.ai = None
+        # AI — new local-first brain
+        self.brain = KentBrain()
         self.history: List[dict] = []
 
         # State
@@ -58,16 +59,20 @@ class KentController(QObject):
         self.pet.show()
         self.chat.hide()
         self._set_state(KentState.IDLE)
-        self.chat.show_message("Hi! I'm Kent. Right-click me to enable the microphone.", 6000)
 
-        # Try to init AI (non-fatal if key missing)
-        try:
-            from kent.ai.gemini import GeminiProvider
-            self.ai = GeminiProvider()
-            print("[kent] Gemini ready")
-        except Exception as e:
-            print(f"[kent] AI not available yet: {e}")
-            self.chat.show_message("AI key missing — add GEMINI_API_KEY to .env", 8000)
+        if self.brain.is_ready():
+            engine = self.brain.current_engine_name()
+            self.chat.show_message(
+                f"Hi! I'm Kent (using {engine}). Right-click me to enable the microphone.",
+                7000,
+            )
+            print(f"[kent] Ready with engine: {engine}")
+        else:
+            self.chat.show_message(
+                "Hi! I'm Kent.\nNo AI engine found yet.\nInstall Ollama or add GEMINI_API_KEY to .env",
+                9000,
+            )
+            print("[kent] No AI engine available at startup")
 
     # ── State machine ──────────────────────────────────────────────────
 
@@ -191,8 +196,11 @@ class KentController(QObject):
     # ── Question processing + AI ───────────────────────────────────────
 
     def _process_question(self, question: str):
-        if not self.ai:
-            self.chat.show_message("AI is not configured. Add GEMINI_API_KEY to .env", 6000)
+        if not self.brain.is_ready():
+            self.chat.show_message(
+                "No AI engine available.\nInstall Ollama or add GEMINI_API_KEY to .env",
+                7000,
+            )
             self._return_to_wake_mode()
             return
 
@@ -216,12 +224,12 @@ class KentController(QObject):
                 print(f"[kent] captured crop around ({mx}, {my})")
 
         # Build messages
-        messages = [{"role": "system", "content": ""}]  # system handled inside provider
-        messages.extend(self.history[-10:])  # last 5 turns
+        messages = []
+        messages.extend(self.history[-10:])  # last ~5 turns
         messages.append({"role": "user", "content": question})
 
         try:
-            reply = self.ai.chat(messages, images=images if images else None)
+            reply = self.brain.chat(messages, images=images if images else None)
         except Exception as e:
             print(f"[kent] AI error: {e}")
             self.chat.show_message("Sorry, I had trouble thinking just now.", 5000)
@@ -240,7 +248,6 @@ class KentController(QObject):
         self.chat.show_message(reply, duration_ms=max(8000, len(reply) * 50))
 
         # After answering, stay in conversation mode a bit longer
-        # so the user can ask follow-ups without saying "Hey Kent" again
         self._set_state(KentState.IDLE)
         self._conversation_timer.start(CONVERSATION_TIMEOUT * 1000)
 
@@ -248,9 +255,10 @@ class KentController(QObject):
         if self.mic_enabled:
             self.stt_worker = SpeechToTextWorker(timeout=10.0)
             self.stt_worker.result.connect(self._on_user_speech)
-            self.stt_worker.failed.connect(lambda r: self._return_to_wake_mode() if r == "timeout" else self._on_stt_failed(r))
+            self.stt_worker.failed.connect(
+                lambda r: self._return_to_wake_mode() if r == "timeout" else self._on_stt_failed(r)
+            )
             self.stt_worker.start()
-            self.chat.show_status("Listening for follow-up...") if self.chat.isVisible() else None
 
     # ── Helpers ────────────────────────────────────────────────────────
 
@@ -260,6 +268,5 @@ class KentController(QObject):
 
     def _reposition_chat(self):
         if self.chat.isVisible():
-            # Place chatbox above the pet
             px, py = self.pet.x(), self.pet.y()
             self.chat.move(px - 40, py - self.chat.height() - 12)
